@@ -824,10 +824,18 @@ function closeOnOverlay(e) {
   if (e.target === document.getElementById('modal-overlay')) closeModal();
 }
 
+function convertImageUrl(url) {
+  if (!url) return '';
+  const gdMatch = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (gdMatch) return `https://drive.google.com/uc?export=view&id=${gdMatch[1]}`;
+  return url;
+}
+
 function previewImage(url) {
   const wrap = document.getElementById('img-preview');
-  if (url) {
-    wrap.innerHTML = `<img src="${url}" alt="" onerror="this.parentElement.innerHTML='<span>URL inválida</span>'">`;
+  const direct = convertImageUrl(url);
+  if (direct) {
+    wrap.innerHTML = `<img src="${direct}" alt="" onerror="this.parentElement.innerHTML='<span>URL inválida ou imagem sem acesso público</span>'">`;
   } else {
     wrap.innerHTML = '<span>Pré-visualização da imagem</span>';
   }
@@ -838,7 +846,7 @@ function savePost() {
   const date = document.getElementById('f-date').value;
   const title = document.getElementById('f-title').value.trim();
   const caption = document.getElementById('f-caption').value.trim();
-  const image = document.getElementById('f-image').value.trim();
+  const image = convertImageUrl(document.getElementById('f-image').value.trim());
 
   if (!title || !date) {
     alert('Preencha ao menos o título e a data.');
