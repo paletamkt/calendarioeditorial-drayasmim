@@ -5,8 +5,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Calendário Editorial — Dra. Yasmim Meneses</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+  import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCpMu7V43IrtKhyYMXFlcz7VKhdvXZ2tYw",
+    authDomain: "paleta-yasmim.firebaseapp.com",
+    projectId: "paleta-yasmim",
+    storageBucket: "paleta-yasmim.firebasestorage.app",
+    messagingSenderId: "653028129243",
+    appId: "1:653028129243:web:d1e2b021489ba023180ffe"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const postsCol = collection(db, 'posts');
+
+  window._db = db;
+  window._postsCol = postsCol;
+  window._fsdk = { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, writeBatch };
+
+  window.dispatchEvent(new Event('firebase-ready'));
+</script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -251,18 +272,7 @@ const ADMIN_PASSWORD = 'paleta2026';
 const MONTHS_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const DAYS_PT = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
-const firebaseConfig = {
-  apiKey: "AIzaSyCpMu7V43IrtKhyYMXFlcz7VKhdvXZ2tYw",
-  authDomain: "paleta-yasmim.firebaseapp.com",
-  projectId: "paleta-yasmim",
-  storageBucket: "paleta-yasmim.firebasestorage.app",
-  messagingSenderId: "653028129243",
-  appId: "1:653028129243:web:d1e2b021489ba023180ffe"
-};
-
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-const postsRef = db.collection('posts');
+let db, postsRef;
 
 let posts = [];
 let currentMonth = 5;
@@ -286,16 +296,7 @@ const DEFAULT_POSTS = [
 
 async function loadData() {
   try {
-    const snap = await postsRef.get();
-    if (snap.empty) {
-      const batch = db.batch();
-      DEFAULT_POSTS.forEach(p => { const ref = postsRef.doc(); batch.set(ref, p); });
-      await batch.commit();
-      const snap2 = await postsRef.get();
-      posts = snap2.docs.map(d => ({ id: d.id, ...d.data() }));
-    } else {
-      posts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    }
+    posts = await window._loadPosts();
   } catch (e) {
     console.error('Firebase error:', e);
     posts = DEFAULT_POSTS.map((p, i) => ({ id: String(i), ...p }));
@@ -517,11 +518,11 @@ async function savePost() {
   if (!data.title || !data.date) { alert('Preencha ao menos o título e a data.'); return; }
   try {
     if (editingId) {
-      await postsRef.doc(editingId).update(data);
+      await window._save(editingId, data);
       const idx = posts.findIndex(x => x.id === editingId);
       posts[idx] = { id: editingId, ...data };
     } else {
-      const ref = await postsRef.add(data);
+      const ref = await window._save(null, data);
       posts.push({ id: ref.id, ...data });
     }
     closeModal();
@@ -532,7 +533,7 @@ async function savePost() {
 async function deletePost(id) {
   if (!confirm('Excluir este post?')) return;
   try {
-    await postsRef.doc(id).delete();
+    await window._delete(id);
     posts = posts.filter(p => p.id !== id);
     render();
   } catch(e) { alert('Erro ao excluir.'); }
@@ -542,7 +543,37 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { closeModal(); closePwdModal(); }
 });
 
-loadData();
+window.addEventListener('firebase-ready', () => {
+  const { getDocs, addDoc, updateDoc, deleteDoc, doc, writeBatch } = window._fsdk;
+  db = window._db;
+  postsRef = window._postsCol;
+
+  window._save = async (editingId, data) => {
+    if (editingId) {
+      await updateDoc(doc(db, 'posts', editingId), data);
+    } else {
+      return await addDoc(postsRef, data);
+    }
+  };
+
+  window._delete = async (id) => {
+    await deleteDoc(doc(db, 'posts', id));
+  };
+
+  window._loadPosts = async () => {
+    const snap = await getDocs(postsRef);
+    if (snap.empty) {
+      const batch = writeBatch(db);
+      DEFAULT_POSTS.forEach(p => { const ref = doc(postsRef); batch.set(ref, p); });
+      await batch.commit();
+      const snap2 = await getDocs(postsRef);
+      return snap2.docs.map(d => ({ id: d.id, ...d.data() }));
+    }
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  };
+
+  loadData();
+});
 </script>
 </body>
 </html>
