@@ -602,9 +602,17 @@
     <div class="modal-body">
       <div class="form-group">
         <div class="img-preview-wrap" id="img-preview">
-          <span>Pré-visualização da imagem</span>
+          <span style="font-size:12px;color:var(--text-light)">Pré-visualização da imagem</span>
         </div>
-        <label>URL da imagem (opcional)</label>
+        <label>Imagem</label>
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
+          <label for="f-upload" style="all:unset;display:inline-flex;align-items:center;gap:7px;padding:9px 18px;background:var(--gold);color:var(--text);border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;letter-spacing:0.04em;white-space:nowrap">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Fazer upload
+          </label>
+          <input type="file" id="f-upload" accept="image/*" style="display:none" onchange="handleUpload(this)">
+          <span style="font-size:11px;color:var(--text-light)">ou cole uma URL</span>
+        </div>
         <input type="url" id="f-image" placeholder="https://..." oninput="previewImage(this.value)">
       </div>
       <div class="form-row">
@@ -792,6 +800,8 @@ function openModal(id = null) {
   const modal = document.getElementById('modal-overlay');
   const titleEl = document.getElementById('modal-title-text');
 
+  document.getElementById('img-preview')._uploadedBase64 = null;
+  document.getElementById('f-upload').value = '';
   if (id) {
     const p = posts.find(x => x.id === id);
     if (!p) return;
@@ -824,20 +834,35 @@ function closeOnOverlay(e) {
   if (e.target === document.getElementById('modal-overlay')) closeModal();
 }
 
+function handleUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const base64 = e.target.result;
+    document.getElementById('f-image').value = '';
+    const wrap = document.getElementById('img-preview');
+    wrap.innerHTML = '<img src="' + base64 + '" alt="">';
+    wrap._uploadedBase64 = base64;
+  };
+  reader.readAsDataURL(file);
+}
+
 function convertImageUrl(url) {
   if (!url) return '';
   const gdMatch = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
-  if (gdMatch) return `https://drive.google.com/uc?export=view&id=${gdMatch[1]}`;
+  if (gdMatch) return `https://lh3.googleusercontent.com/d/${gdMatch[1]}`;
   return url;
 }
 
 function previewImage(url) {
   const wrap = document.getElementById('img-preview');
+  wrap._uploadedBase64 = null;
   const direct = convertImageUrl(url);
   if (direct) {
-    wrap.innerHTML = `<img src="${direct}" alt="" onerror="this.parentElement.innerHTML='<span>URL inválida ou imagem sem acesso público</span>'">`;
+    wrap.innerHTML = `<img src="${direct}" alt="" onerror="this.parentElement.innerHTML='<span style=font-size:12px;color:var(--text-light)>URL inválida ou sem acesso público</span>'">`;
   } else {
-    wrap.innerHTML = '<span>Pré-visualização da imagem</span>';
+    wrap.innerHTML = '<span style="font-size:12px;color:var(--text-light)">Pré-visualização da imagem</span>';
   }
 }
 
@@ -846,7 +871,8 @@ function savePost() {
   const date = document.getElementById('f-date').value;
   const title = document.getElementById('f-title').value.trim();
   const caption = document.getElementById('f-caption').value.trim();
-  const image = convertImageUrl(document.getElementById('f-image').value.trim());
+  const wrap = document.getElementById('img-preview');
+  const image = wrap._uploadedBase64 || convertImageUrl(document.getElementById('f-image').value.trim());
 
   if (!title || !date) {
     alert('Preencha ao menos o título e a data.');
