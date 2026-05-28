@@ -800,7 +800,10 @@ function openModal(id = null) {
   const modal = document.getElementById('modal-overlay');
   const titleEl = document.getElementById('modal-title-text');
 
-  document.getElementById('img-preview')._uploadedBase64 = null;
+  const _prevWrap = document.getElementById('img-preview');
+  _prevWrap._uploadedBase64 = null;
+  _prevWrap._uploadedRatio = null;
+  _prevWrap.style.aspectRatio = '1/1';
   document.getElementById('f-upload').value = '';
   if (id) {
     const p = posts.find(x => x.id === id);
@@ -812,6 +815,11 @@ function openModal(id = null) {
     document.getElementById('f-caption').value = p.caption;
     document.getElementById('f-image').value = p.image || '';
     previewImage(p.image || '');
+    if (p.ratio) {
+      const w = document.getElementById('img-preview');
+      w.style.aspectRatio = ratioToCss(p.ratio);
+      if (p.image) w._uploadedRatio = p.ratio;
+    }
   } else {
     titleEl.textContent = 'Novo post';
     document.getElementById('f-type').value = 'reel';
@@ -834,16 +842,34 @@ function closeOnOverlay(e) {
   if (e.target === document.getElementById('modal-overlay')) closeModal();
 }
 
+function detectRatio(w, h) {
+  const r = w / h;
+  if (r > 1.2) return '16:9';
+  if (r < 0.85) return '4:5';
+  return '1:1';
+}
+
+function ratioToCss(r) {
+  return { '1:1': '1/1', '4:5': '4/5', '16:9': '16/9' }[r] || '1/1';
+}
+
 function handleUpload(input) {
   const file = input.files[0];
   if (!file) return;
   const reader = new FileReader();
   reader.onload = function(e) {
     const base64 = e.target.result;
-    document.getElementById('f-image').value = '';
-    const wrap = document.getElementById('img-preview');
-    wrap.innerHTML = '<img src="' + base64 + '" alt="">';
-    wrap._uploadedBase64 = base64;
+    const img = new Image();
+    img.onload = function() {
+      const ratio = detectRatio(img.naturalWidth, img.naturalHeight);
+      document.getElementById('f-image').value = '';
+      const wrap = document.getElementById('img-preview');
+      wrap.style.aspectRatio = ratioToCss(ratio);
+      wrap.innerHTML = '<img src="' + base64 + '" alt="" style="width:100%;height:100%;object-fit:cover">';
+      wrap._uploadedBase64 = base64;
+      wrap._uploadedRatio = ratio;
+    };
+    img.src = base64;
   };
   reader.readAsDataURL(file);
 }
@@ -873,6 +899,7 @@ function savePost() {
   const caption = document.getElementById('f-caption').value.trim();
   const wrap = document.getElementById('img-preview');
   const image = wrap._uploadedBase64 || convertImageUrl(document.getElementById('f-image').value.trim());
+  const ratio = wrap._uploadedRatio || (editingId ? (posts.find(x=>x.id===editingId)||{}).ratio||'1:1' : '1:1');
 
   if (!title || !date) {
     alert('Preencha ao menos o título e a data.');
@@ -881,10 +908,10 @@ function savePost() {
 
   if (editingId) {
     const idx = posts.findIndex(x => x.id === editingId);
-    posts[idx] = { ...posts[idx], type, date, title, caption, image };
+    posts[idx] = { ...posts[idx], type, date, title, caption, image, ratio };
   } else {
     const newId = Date.now();
-    posts.push({ id: newId, type, date, title, caption, image });
+    posts.push({ id: newId, type, date, title, caption, image, ratio });
   }
 
   saveData();
