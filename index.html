@@ -144,6 +144,40 @@
   .pwd-modal p { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
   .pwd-error { color: var(--reel-color); font-size: 12px; margin-top: 8px; display: none; }
 
+  /* VIEW MODAL */
+  .view-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(30,26,22,0.75); z-index: 200; align-items: flex-end; justify-content: center; }
+  .view-modal-overlay.open { display: flex; }
+  .view-modal {
+    background: #fff; width: 100%; max-width: 480px; max-height: 92vh;
+    border-radius: 20px 20px 0 0; overflow: hidden;
+    display: flex; flex-direction: column;
+    animation: slideUp 0.3s ease;
+  }
+  @keyframes slideUp { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .view-modal-img {
+    width: 100%; background: #1E1A16;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; max-height: 52vw;
+    overflow: hidden;
+  }
+  .view-modal-img img { width: 100%; height: auto; display: block; object-fit: contain; }
+  .view-modal-img-placeholder { aspect-ratio: 4/5; max-height: 220px; width: 100%; background: var(--cream); display: flex; align-items: center; justify-content: center; color: var(--text-light); font-size: 12px; }
+  .view-modal-body { padding: 20px 24px 32px; overflow-y: auto; flex: 1; }
+  .view-modal-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .view-modal-type { padding: 4px 12px; border-radius: 20px; font-size: 10px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; }
+  .view-modal-date { font-size: 11px; color: var(--text-light); letter-spacing: 0.06em; text-transform: uppercase; }
+  .view-modal-title { font-family: 'Cormorant Garamond', serif; font-size: 20px; font-weight: 500; color: var(--text); margin-bottom: 12px; line-height: 1.3; }
+  .view-modal-caption { font-size: 14px; color: var(--text-muted); line-height: 1.75; white-space: pre-wrap; }
+  .view-modal-close { position: absolute; top: 14px; right: 14px; background: rgba(30,26,22,0.5); border: none; border-radius: 50%; width: 32px; height: 32px; cursor: pointer; color: #fff; display: flex; align-items: center; justify-content: center; z-index: 10; }
+  .view-modal-close:hover { background: rgba(30,26,22,0.8); }
+  .view-modal-drag { width: 36px; height: 4px; background: var(--border-strong); border-radius: 2px; margin: 10px auto 0; }
+
+  @media (min-width: 600px) {
+    .view-modal-overlay { align-items: center; }
+    .view-modal { border-radius: 20px; max-height: 88vh; }
+    .view-modal-img { max-height: 320px; }
+  }
+
   @media (max-width: 768px) {
     header { padding: 16px 20px; flex-wrap: wrap; gap: 12px; }
     .header-left h1 { font-size: 18px; }
@@ -275,6 +309,27 @@
   </div>
 </div>
 
+<!-- MODAL VISUALIZAÇÃO -->
+<div class="view-modal-overlay" id="view-modal-overlay" onclick="closeViewOnOverlay(event)">
+  <div class="view-modal" id="view-modal">
+    <div class="view-modal-drag"></div>
+    <div style="position:relative">
+      <div class="view-modal-img" id="view-modal-img"></div>
+      <button class="view-modal-close" onclick="closeViewModal()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="view-modal-body">
+      <div class="view-modal-top">
+        <span class="view-modal-type" id="view-modal-type"></span>
+        <span class="view-modal-date" id="view-modal-date"></span>
+      </div>
+      <p class="view-modal-title" id="view-modal-title"></p>
+      <p class="view-modal-caption" id="view-modal-caption"></p>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL SENHA -->
 <div class="pwd-modal-overlay" id="pwd-modal-overlay" onclick="closePwdOnOverlay(event)">
   <div class="pwd-modal">
@@ -316,6 +371,45 @@ const DEFAULT_POSTS = [
   { type: 'static', date: '2026-06-21', title: 'Seu sorriso é um investimento, não um gasto', caption: 'Quando você entende que saúde bucal afeta sua saúde sistêmica, sua autoestima e sua presença, a perspectiva muda.', image: '' },
   { type: 'reel', date: '2026-06-24', title: 'Reabilitação oral não é luxo. É qualidade de vida.', caption: 'É poder comer sem dor. É sorrir sem esconder. É se sentir inteira. É por isso que aqui a gente trata cada caso como único.', image: '' }
 ];
+
+const typeBadgeStyle = {
+  reel: 'background:var(--reel-bg);color:var(--reel-color)',
+  carousel: 'background:var(--carousel-bg);color:var(--carousel-color)',
+  static: 'background:var(--static-bg);color:var(--static-color)'
+};
+
+function viewPost(id) {
+  const p = posts.find(x => x.id === id);
+  if (!p) return;
+
+  const imgWrap = document.getElementById('view-modal-img');
+  if (p.image) {
+    imgWrap.innerHTML = `<img src="${p.image}" alt="" style="width:100%;height:auto;display:block;object-fit:contain">`;
+    imgWrap.style.display = 'flex';
+  } else {
+    imgWrap.style.display = 'none';
+  }
+
+  const typeEl = document.getElementById('view-modal-type');
+  typeEl.textContent = typeLabel(p.type);
+  typeEl.style.cssText = typeBadgeStyle[p.type] || '';
+
+  document.getElementById('view-modal-date').textContent = formatDate(p.date);
+  document.getElementById('view-modal-title').textContent = p.title;
+  document.getElementById('view-modal-caption').textContent = p.caption;
+
+  document.getElementById('view-modal-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeViewModal() {
+  document.getElementById('view-modal-overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function closeViewOnOverlay(e) {
+  if (e.target === document.getElementById('view-modal-overlay')) closeViewModal();
+}
 
 async function loadData() {
   try {
@@ -365,7 +459,7 @@ function renderGrid() {
   empty.style.display = 'none';
 
   grid.innerHTML = mp.map(p => `
-    <div class="post-card type-${p.type}" onclick="openModal('${p.id}')">
+    <div class="post-card type-${p.type}" onclick="isAdmin ? openModal('${p.id}') : viewPost('${p.id}')">
       <div style="height:5px;background:${typeBarColor[p.type]};border-radius:var(--radius) var(--radius) 0 0"></div>
       <div style="position:relative">
         ${p.image
@@ -404,7 +498,7 @@ function renderCalendar() {
   for (let day = 1; day <= daysInMonth; day++) {
     const isToday = today.getDate() === day && today.getMonth() === currentMonth && today.getFullYear() === currentYear;
     const chips = mp.filter(p => new Date(p.date + 'T12:00:00').getDate() === day)
-      .map(p => `<div class="cal-post-chip ${p.type}" onclick="openModal('${p.id}')" title="${p.title}">${p.title}</div>`).join('');
+      .map(p => `<div class="cal-post-chip ${p.type}" onclick="isAdmin ? openModal('${p.id}') : viewPost('${p.id}')" title="${p.title}">${p.title}</div>`).join('');
     html += `<div class="cal-day ${isToday ? 'today' : ''}"><div class="cal-day-num">${day}</div>${chips}</div>`;
   }
   document.getElementById('calendar-grid').innerHTML = html;
@@ -563,7 +657,7 @@ async function deletePost(id) {
 }
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeModal(); closePwdModal(); }
+  if (e.key === 'Escape') { closeModal(); closePwdModal(); closeViewModal(); }
 });
 
 window.addEventListener('firebase-ready', () => {
