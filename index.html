@@ -8,6 +8,7 @@
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
   import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+  import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyCpMu7V43IrtKhyYMXFlcz7VKhdvXZ2tYw",
@@ -21,10 +22,19 @@
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
   const postsCol = collection(db, 'posts');
+  const auth = getAuth(app);
 
   window._db = db;
   window._postsCol = postsCol;
+  window._auth = auth;
   window._fsdk = { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, writeBatch };
+
+  window._signIn = (email, password) => signInWithEmailAndPassword(auth, email, password);
+  window._signOut = () => signOut(auth);
+
+  onAuthStateChanged(auth, (user) => {
+    window.dispatchEvent(new CustomEvent('auth-state-changed', { detail: { loggedIn: !!user } }));
+  });
 
   window.dispatchEvent(new Event('firebase-ready'));
 </script>
@@ -330,22 +340,24 @@
   </div>
 </div>
 
-<!-- MODAL SENHA -->
+<!-- MODAL LOGIN -->
 <div class="pwd-modal-overlay" id="pwd-modal-overlay" onclick="closePwdOnOverlay(event)">
   <div class="pwd-modal">
     <h3>Modo edição</h3>
-    <p>Digite a senha para desbloquear</p>
-    <input type="password" id="pwd-input" placeholder="••••••••" onkeydown="if(event.key==='Enter')checkPassword()">
-    <p class="pwd-error" id="pwd-error">Senha incorreta</p>
+    <p>Entre com sua conta da equipe</p>
+    <div class="form-group" style="text-align:left">
+      <input type="text" id="pwd-email" placeholder="E-mail" autocomplete="username" style="margin-bottom:10px">
+      <input type="password" id="pwd-input" placeholder="Senha" autocomplete="current-password" onkeydown="if(event.key==='Enter')checkPassword()">
+    </div>
+    <p class="pwd-error" id="pwd-error">E-mail ou senha incorretos</p>
     <div style="display:flex;gap:10px;margin-top:20px;justify-content:center">
       <button class="btn-cancel" onclick="closePwdModal()">Cancelar</button>
-      <button class="btn-save" onclick="checkPassword()">Entrar</button>
+      <button class="btn-save" id="pwd-submit-btn" onclick="checkPassword()">Entrar</button>
     </div>
   </div>
 </div>
 
 <script>
-const ADMIN_PASSWORD = 'paleta2026';
 const MONTHS_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const DAYS_PT = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
@@ -514,24 +526,40 @@ function render() {
 
 function toggleAdmin() {
   if (isAdmin) {
-    isAdmin = false;
-    updateAdminUI();
+    window._signOut().finally(() => {
+      isAdmin = false;
+      updateAdminUI();
+      render();
+    });
   } else {
     document.getElementById('pwd-modal-overlay').classList.add('open');
-    setTimeout(() => document.getElementById('pwd-input').focus(), 100);
+    setTimeout(() => document.getElementById('pwd-email').focus(), 100);
   }
 }
 
-function checkPassword() {
-  const val = document.getElementById('pwd-input').value;
-  if (val === ADMIN_PASSWORD) {
-    isAdmin = true;
+async function checkPassword() {
+  const email = document.getElementById('pwd-email').value.trim();
+  const pass = document.getElementById('pwd-input').value;
+  const btn = document.getElementById('pwd-submit-btn');
+  document.getElementById('pwd-error').style.display = 'none';
+  if (!email || !pass) {
+    document.getElementById('pwd-error').textContent = 'Preencha e-mail e senha.';
+    document.getElementById('pwd-error').style.display = 'block';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Entrando...';
+  try {
+    await window._signIn(email, pass);
     closePwdModal();
-    updateAdminUI();
-    render();
-  } else {
+    // isAdmin é definido pelo listener auth-state-changed
+  } catch (e) {
+    document.getElementById('pwd-error').textContent = 'E-mail ou senha incorretos.';
     document.getElementById('pwd-error').style.display = 'block';
     document.getElementById('pwd-input').value = '';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Entrar';
   }
 }
 
@@ -548,6 +576,7 @@ function updateAdminUI() {
 
 function closePwdModal() {
   document.getElementById('pwd-modal-overlay').classList.remove('open');
+  document.getElementById('pwd-email').value = '';
   document.getElementById('pwd-input').value = '';
   document.getElementById('pwd-error').style.display = 'none';
 }
@@ -658,6 +687,12 @@ async function deletePost(id) {
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { closeModal(); closePwdModal(); closeViewModal(); }
+});
+
+window.addEventListener('auth-state-changed', (e) => {
+  isAdmin = e.detail.loggedIn;
+  updateAdminUI();
+  render();
 });
 
 window.addEventListener('firebase-ready', () => {
